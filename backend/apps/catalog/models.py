@@ -10,12 +10,6 @@ class Course(models.Model):
         INTERMEDIATE = "intermediate", "Intermediate"
         ADVANCED = "advanced", "Advanced"
 
-    class Accent(models.TextChoices):
-        LIME = "lime", "Lime"
-        VIOLET = "violet", "Violet"
-        CORAL = "coral", "Coral"
-        SKY = "sky", "Sky"
-
     class Icon(models.TextChoices):
         TERMINAL = "terminal", "Terminal"
         BRANCH = "branch", "Branch"
@@ -28,13 +22,7 @@ class Course(models.Model):
     level = models.CharField(
         max_length=20, choices=Level.choices, default=Level.BEGINNER
     )
-    duration_minutes = models.PositiveIntegerField(validators=[MinValueValidator(1)])
-    accent = models.CharField(
-        max_length=20, choices=Accent.choices, default=Accent.LIME
-    )
     icon = models.CharField(max_length=20, choices=Icon.choices, default=Icon.TERMINAL)
-    outcomes = models.JSONField(default=list, blank=True)
-    tools = models.JSONField(default=list, blank=True)
     position = models.PositiveSmallIntegerField(default=0)
     is_published = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)

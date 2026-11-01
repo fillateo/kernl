@@ -1,5 +1,4 @@
 export type CourseLevel = "beginner" | "intermediate" | "advanced";
-export type CourseAccent = "lime" | "violet" | "coral" | "sky";
 export type CourseIcon = "terminal" | "branch" | "code";
 
 export interface LessonSummary {
@@ -19,24 +18,15 @@ export interface Module {
   lessons: LessonSummary[];
 }
 
-export interface CourseSummary {
-  slug: string;
+export interface CourseDetail {
   title: string;
   tagline: string;
   description: string;
   level: CourseLevel;
-  duration_minutes: number;
-  accent: CourseAccent;
   icon: CourseIcon;
-  outcomes: string[];
-  tools: string[];
   lesson_count: number;
   module_count: number;
-}
-
-export interface CourseDetail extends CourseSummary {
   modules: Module[];
-  first_lesson: string | null;
 }
 
 export interface NeighbourLesson {

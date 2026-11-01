@@ -31,11 +31,7 @@ def course(db) -> Course:
         tagline="A compact test track.",
         description="A course created for the test suite.",
         level=Course.Level.BEGINNER,
-        duration_minutes=40,
-        accent=Course.Accent.LIME,
         icon=Course.Icon.TERMINAL,
-        outcomes=["Do the thing"],
-        tools=["bash", "ls"],
         position=1,
     )
     module = Module.objects.create(

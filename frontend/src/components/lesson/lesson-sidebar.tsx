@@ -16,7 +16,7 @@ export function LessonOutline({
       {modules.map((module, moduleIndex) => (
         <div key={module.id} className="mb-6 last:mb-0">
           <div className="mb-2 flex items-center gap-2 px-2">
-            <span className="text-muted/70 font-mono text-[9px] font-medium tracking-[0.15em] uppercase">
+            <span className="text-muted font-mono text-[9px] font-medium tracking-[0.15em] uppercase">
               {String(moduleIndex + 1).padStart(2, "0")}
             </span>
             <span className="text-muted font-mono text-[9px] font-semibold tracking-[0.13em] uppercase">
@@ -43,7 +43,7 @@ export function LessonOutline({
                     <span
                       className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border font-mono text-[8px] font-semibold ${
                         active
-                          ? "border-violet bg-violet text-white"
+                          ? "border-ink bg-ink text-lime"
                           : "border-line-strong text-muted"
                       }`}
                     >
@@ -63,7 +63,7 @@ export function LessonOutline({
                           {lesson.duration_minutes}m
                         </span>
                         {lesson.is_mandatory && (
-                          <span className="bg-lime/40 text-ink/55 inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[7px] font-semibold tracking-[0.08em] uppercase">
+                          <span className="bg-lime/70 text-ink inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-mono text-[7px] font-semibold tracking-[0.08em] uppercase">
                             <LockKeyhole className="size-2" />
                             Required
                           </span>

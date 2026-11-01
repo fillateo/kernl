@@ -34,7 +34,7 @@ The scope is exactly three pages:
 
 | Layer | Choice |
 | --- | --- |
-| Backend | Django 5.2 LTS, Django REST Framework, Channels 4, Uvicorn (Docker) / Daphne (native) |
+| Backend | Django 5.2 LTS, Django REST Framework, Channels 4, Uvicorn |
 | Frontend | Next.js 16 App Router, React 19, TypeScript, Tailwind CSS 4 |
 | Terminal | xterm.js 6 + WebSockets + a real PTY + bubblewrap |
 | Containers | Docker multi-stage images + Docker Compose |
@@ -166,7 +166,7 @@ backend/.venv/bin/pip install -r backend/requirements-dev.txt
 cd backend
 .venv/bin/python manage.py migrate
 .venv/bin/python manage.py seed_catalog --prune
-.venv/bin/daphne -b 127.0.0.1 -p 8000 config.asgi:application
+.venv/bin/uvicorn config.asgi:application --host 127.0.0.1 --port 8000
 
 # Frontend (another terminal)
 cd frontend
@@ -291,6 +291,7 @@ make lint           # Ruff, ESLint, TypeScript, Prettier
 make e2e-install    # once per machine
 make e2e            # Playwright (starts native servers)
 make docker-e2e     # Playwright against the running Compose stack
+make verify         # Full lint + unit + build + Docker + E2E suite
 ```
 
 Current suites:
@@ -300,9 +301,9 @@ Current suites:
   idle timeout, output limits, and real bubblewrap isolation (network + filesystem).
 - **7 frontend tests** covering content rendering, XSS-safe rich text, command
   execution wiring, and WebSocket URL construction.
-- **4 Playwright tests** covering the three-page flow, lesson and playground
-  terminals, executable lesson scripts, and three isolated terminal sessions
-  running concurrently.
+- **11 Playwright tests** covering the three-page flow, lesson and playground
+  terminals, three isolated concurrent sessions, WCAG accessibility scans,
+  mobile overflow checks, keyboard focus, console errors, and the 404 page.
 
 The E2E terminal test automatically skips when the host cannot run bubblewrap.
 Backend sandbox tests do the same, so the suite remains portable.
@@ -368,7 +369,7 @@ docker compose up -d web
 
 | Variable | Default | Notes |
 | --- | --- | --- |
-| `API_URL` | `http://api:8000` | Server-side lesson fetches |
+| `API_URL` | `http://127.0.0.1:8000` (native), `http://api:8000` (Docker) | Server-side lesson fetch |
 | `NEXT_PUBLIC_API_URL` | `http://127.0.0.1:8000` | Browser ticket POST |
 | `NEXT_PUBLIC_WS_URL` | derived from API URL | WebSocket origin override |
 

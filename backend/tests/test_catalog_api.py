@@ -16,7 +16,7 @@ def test_lesson_detail_contains_navigation_and_course_outline(api_client, course
     assert payload["total_lessons"] == 2
     assert payload["next_lesson"]["slug"] == "test-lesson-two"
     assert payload["previous_lesson"] is None
-    assert payload["course"]["slug"] == "test-course"
+    assert payload["course"]["title"] == "Test Course"
     assert payload["module"]["title"] == "Test module"
 
 

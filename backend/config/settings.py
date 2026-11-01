@@ -1,8 +1,8 @@
 """Django settings for the Kernl learning platform.
 
-Everything runs locally by default: SQLite for persistence, an in-memory
-Channels layer for WebSockets, and bubblewrap for isolated terminal sessions.
-No third-party service credentials are required.
+Everything runs locally: SQLite for native development, PostgreSQL in Docker,
+Channels for WebSockets, and bubblewrap for isolated terminal sessions. No
+third-party service credentials are required.
 """
 
 from pathlib import Path
@@ -17,10 +17,6 @@ env = environ.Env(
     DJANGO_DEBUG=(bool, True),
     DJANGO_ALLOWED_HOSTS=(list, ["localhost", "127.0.0.1"]),
     CORS_ALLOWED_ORIGINS=(
-        list,
-        ["http://localhost:3000", "http://127.0.0.1:3000"],
-    ),
-    CSRF_TRUSTED_ORIGINS=(
         list,
         ["http://localhost:3000", "http://127.0.0.1:3000"],
     ),
@@ -44,10 +40,6 @@ ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS")
 
 # Application definition -----------------------------------------------------
 
-DJANGO_APPS = [
-    "django.contrib.contenttypes",
-    "django.contrib.staticfiles",
-]
 
 THIRD_PARTY_APPS = [
     "channels",
@@ -60,22 +52,17 @@ LOCAL_APPS = [
     "apps.terminal",
 ]
 
-INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
+INSTALLED_APPS = THIRD_PARTY_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
-    "django.middleware.csrf.CsrfViewMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
 
-TEMPLATES: list[dict] = []
-
-WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
 # Database -------------------------------------------------------------------
@@ -97,23 +84,6 @@ TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 
-# Static and media files -----------------------------------------------------
-
-STATIC_URL = "static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
-STORAGES = {
-    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
-    },
-}
-MEDIA_URL = "media/"
-MEDIA_ROOT = BASE_DIR / "media"
-
-# Let Whitenoise serve admin/static assets from the app finders during local
-# development without requiring a collectstatic step.
-WHITENOISE_USE_FINDERS = DEBUG
-
 # REST API -------------------------------------------------------------------
 
 REST_FRAMEWORK = {
@@ -129,7 +99,6 @@ REST_FRAMEWORK = {
 
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS")
 CORS_ALLOW_CREDENTIALS = False
-CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS")
 
 # Channels -------------------------------------------------------------------
 # Each terminal consumer sends directly to its own WebSocket and does not use
@@ -163,9 +132,6 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "same-origin"
 X_FRAME_OPTIONS = "DENY"
 
-if not DEBUG:
-    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-    CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=True)
 
 # Logging --------------------------------------------------------------------
 

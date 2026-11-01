@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PYTHON="${PYTHON_BIN:-$ROOT_DIR/backend/.venv/bin/python}"
-DAPHNE="${DAPHNE_BIN:-$ROOT_DIR/backend/.venv/bin/daphne}"
+UVICORN="${UVICORN_BIN:-$ROOT_DIR/backend/.venv/bin/uvicorn}"
 
 if [[ ! -x "$PYTHON" ]]; then
   echo "Backend virtualenv not found. Run 'make install' first." >&2
@@ -14,4 +14,4 @@ cd "$ROOT_DIR/backend"
 "$PYTHON" manage.py migrate --noinput
 "$PYTHON" manage.py seed_catalog --prune
 
-exec "$DAPHNE" -b 127.0.0.1 -p 8000 config.asgi:application
+exec "$UVICORN" config.asgi:application --host 127.0.0.1 --port 8000

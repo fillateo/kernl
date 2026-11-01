@@ -27,11 +27,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Build-time static collection is intentional: the runtime container is
-# read-only and must never mutate its own image.
-RUN python manage.py collectstatic --noinput \
-    && mkdir -p /app/data /app/var/terminal \
-    && chown -R kernl:kernl /app
+RUN chown -R kernl:kernl /app
 
 COPY docker/start-api.sh /usr/local/bin/start-api.sh
 RUN chmod 0755 /usr/local/bin/start-api.sh

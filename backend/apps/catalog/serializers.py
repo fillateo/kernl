@@ -26,25 +26,22 @@ class ModuleSerializer(serializers.ModelSerializer):
         fields = ("id", "title", "summary", "position", "lessons")
 
 
-class CourseListSerializer(serializers.ModelSerializer):
+class CourseDetailSerializer(serializers.ModelSerializer):
     lesson_count = serializers.SerializerMethodField()
     module_count = serializers.SerializerMethodField()
+    modules = ModuleSerializer(many=True, read_only=True)
 
     class Meta:
         model = Course
         fields = (
-            "slug",
             "title",
             "tagline",
             "description",
             "level",
-            "duration_minutes",
-            "accent",
             "icon",
-            "outcomes",
-            "tools",
             "lesson_count",
             "module_count",
+            "modules",
         )
 
     def get_lesson_count(self, obj: Course) -> int:
@@ -54,21 +51,6 @@ class CourseListSerializer(serializers.ModelSerializer):
     def get_module_count(self, obj: Course) -> int:
         annotated = getattr(obj, "module_count_annotated", None)
         return annotated if annotated is not None else obj.modules.count()
-
-
-class CourseDetailSerializer(CourseListSerializer):
-    modules = ModuleSerializer(many=True, read_only=True)
-    first_lesson = serializers.SerializerMethodField()
-
-    class Meta(CourseListSerializer.Meta):
-        fields = CourseListSerializer.Meta.fields + ("modules", "first_lesson")
-
-    def get_first_lesson(self, obj: Course) -> str | None:
-        for module in obj.modules.all():
-            lessons = list(module.lessons.all())
-            if lessons:
-                return lessons[0].slug
-        return None
 
 
 class LessonDetailSerializer(serializers.ModelSerializer):

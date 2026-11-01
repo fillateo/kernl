@@ -1,8 +1,4 @@
-"""The local course catalog.
-
-Only the Git Essentials track is exposed by the one-page lesson
-workspace.
-"""
+"""The local course catalog for the one-page Git Essentials track."""
 
 from __future__ import annotations
 
@@ -15,16 +11,7 @@ COURSES = [
         "will stage changes, read history, build a branch, and merge it "
         "back—without risking anything you care about.",
         "level": "beginner",
-        "duration_minutes": 75,
-        "accent": "violet",
         "icon": "branch",
-        "outcomes": [
-            "Initialize a repository and read its status",
-            "Stage and commit changes with clear messages",
-            "Inspect history with git log and git diff",
-            "Create a branch and merge it safely",
-        ],
-        "tools": ["git init", "git status", "git add", "git commit", "git switch"],
         "modules": [
             {
                 "title": "Repositories",

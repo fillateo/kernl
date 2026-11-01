@@ -3,7 +3,7 @@ PIP := backend/.venv/bin/pip
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install setup dev backend frontend migrate seed test test-backend test-frontend lint format build e2e e2e-install docker-build docker-up docker-down docker-reset docker-logs docker-check docker-e2e clean
+.PHONY: help install setup dev backend frontend migrate seed test test-backend test-frontend lint format build e2e e2e-install docker-build docker-up docker-down docker-reset docker-logs docker-check docker-e2e verify clean
 
 help:
 	@printf "\nKernl — local-first terminal courses\n\n"
@@ -20,6 +20,7 @@ help:
 	@printf "  make docker-down   Stop the Docker Compose stack\n"
 	@printf "  make docker-check  Verify the sandbox inside the API container\n"
 	@printf "  make docker-e2e    Run Playwright against the Compose stack\n"
+	@printf "  make verify        Run the full local QA suite\n"
 	@printf "  make clean        Remove local databases, builds, and caches\n\n"
 
 install:
@@ -34,7 +35,7 @@ dev:
 	./scripts/dev.sh
 
 backend:
-	cd backend && .venv/bin/daphne -b 127.0.0.1 -p 8000 config.asgi:application
+	cd backend && .venv/bin/uvicorn config.asgi:application --host 127.0.0.1 --port 8000
 
 frontend:
 	cd frontend && npm run dev
@@ -93,9 +94,17 @@ docker-e2e:
 	docker compose up -d --wait --wait-timeout 180
 	cd frontend && PLAYWRIGHT_BASE_URL=http://localhost:3000 E2E_HEALTH_URL=http://127.0.0.1:8000/api/health/ npm run e2e
 
+verify:
+	$(MAKE) e2e-install
+	$(MAKE) lint
+	$(MAKE) test
+	$(MAKE) build
+	$(MAKE) docker-up
+	$(MAKE) docker-check
+	$(MAKE) docker-e2e
+
 clean:
 	docker compose down -v --remove-orphans 2>/dev/null || true
 	rm -rf backend/db.sqlite3 backend/var backend/.pytest_cache backend/.ruff_cache
-	find backend/staticfiles -mindepth 1 ! -name .gitkeep -delete
 	rm -rf frontend/.next frontend/test-results frontend/playwright-report frontend/coverage
 	find backend/apps backend/config backend/tests -type d -name __pycache__ -prune -exec rm -rf {} +

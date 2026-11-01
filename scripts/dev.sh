@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PYTHON="$ROOT_DIR/backend/.venv/bin/python"
-DAPHNE="$ROOT_DIR/backend/.venv/bin/daphne"
+UVICORN="$ROOT_DIR/backend/.venv/bin/uvicorn"
 BACKEND_PID=""
 
 cleanup() {
@@ -29,7 +29,7 @@ cd "$ROOT_DIR/backend"
 "$PYTHON" manage.py seed_catalog --prune
 
 echo "Starting Django + Channels on http://127.0.0.1:8000"
-"$DAPHNE" -b 127.0.0.1 -p 8000 config.asgi:application &
+"$UVICORN" config.asgi:application --host 127.0.0.1 --port 8000 --reload &
 BACKEND_PID=$!
 
 cd "$ROOT_DIR/frontend"

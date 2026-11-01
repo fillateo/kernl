@@ -411,6 +411,6 @@ export HISTSIZE=0
 export BASH_SILENCE_DEPRECATION_WARNING=1
 export GIT_TERMINAL_PROMPT=0
 cd /home/learner
-printf '\n\033[38;5;114m  kernl sandbox\033[0m  \033[2mephemeral · no network\033[0m\n'
-printf '\033[2m  Try ls, pwd, or help. Everything resets when you disconnect.\033[0m\n\n'
+printf '\n\033[38;5;114m  kernl sandbox\033[0m  \033[38;5;250mephemeral · no network\033[0m\n'
+printf '\033[38;5;250m  Try ls, pwd, or help. Everything resets when you disconnect.\033[0m\n\n'
 """.strip()

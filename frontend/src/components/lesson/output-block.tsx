@@ -12,7 +12,11 @@ export function OutputBlock({ text, label }: { text: string; label?: string }) {
           stdout
         </span>
       </div>
-      <pre className="text-ink/70 overflow-x-auto px-4 py-4 font-mono text-[11px] leading-6 sm:text-[12px]">
+      <pre
+        tabIndex={0}
+        aria-label={label ?? "Command output"}
+        className="text-ink/70 overflow-x-auto px-4 py-4 font-mono text-[11px] leading-6 sm:text-[12px]"
+      >
         <code>{text}</code>
       </pre>
     </div>

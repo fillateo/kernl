@@ -54,12 +54,12 @@ export function LessonWorkspace({ lesson }: { lesson: Lesson }) {
               {lesson.duration_minutes} min
             </span>
             {lesson.is_mandatory && (
-              <span className="bg-lime/60 text-ink/60 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[8px] tracking-[0.1em] uppercase">
+              <span className="bg-lime/70 text-ink inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[8px] tracking-[0.1em] uppercase">
                 <LockKeyhole className="size-2.5" />
                 Required
               </span>
             )}
-            <span className="text-muted/70 ml-auto hidden items-center gap-1.5 font-mono text-[8px] tracking-[0.1em] uppercase sm:inline-flex">
+            <span className="text-muted ml-auto hidden items-center gap-1.5 font-mono text-[8px] tracking-[0.1em] uppercase sm:inline-flex">
               <span className="size-1.5 rounded-full bg-emerald-500" />
               Live sandbox
             </span>
