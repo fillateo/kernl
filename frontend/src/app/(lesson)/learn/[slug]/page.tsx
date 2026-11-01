@@ -28,7 +28,7 @@ export default async function LessonPage({ params }: LessonPageProps) {
 
   return (
     <div className="bg-cream flex min-h-dvh flex-col">
-      <AppHeader courseTitle={lesson.course.title} />
+      <AppHeader title={lesson.course.title} />
       <div className="min-h-0 flex-1">
         <LessonWorkspace lesson={lesson} />
       </div>

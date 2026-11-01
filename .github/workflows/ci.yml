@@ -134,7 +134,7 @@ jobs:
           docker compose ps
           curl -fsS http://127.0.0.1:8000/api/health/
           docker compose exec -T api python manage.py check_terminal
-          for path in / /learn/your-first-repository; do
+          for path in / /learn/your-first-repository /playground; do
             curl -fsSL "http://127.0.0.1:3000${path}" > /dev/null
           done
 

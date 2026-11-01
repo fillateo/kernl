@@ -2,11 +2,13 @@
 
 **Learn the terminal by actually using it.**
 
-One focused lesson workspace: a Codecademy-style page with a real Linux
-terminal in the browser. Real bash, no sign-up, no landing pages, no catalog
-browsing, and no external shell service.
+Three focused pages: a Git Essentials course overview, a lesson workspace with
+a real Linux terminal, and a standalone terminal playground. Real bash, no
+sign-up, no marketing landing pages, and no external shell service.
 
-![Git Essentials lesson workspace](docs/screenshots/lesson.png)
+| Course overview | Lesson workspace | Terminal playground |
+| --- | --- | --- |
+| ![Course overview](docs/screenshots/course.png) | ![Lesson workspace](docs/screenshots/lesson.png) | ![Terminal playground](docs/screenshots/playground.png) |
 
 ## What it is
 
@@ -14,12 +16,13 @@ Kernl pairs short, guided lessons with an ephemeral Linux sandbox. The learner
 reads an explanation, runs the command from the lesson, and sees real output
 from a real shell—not a simulation or a recorded video.
 
-The scope is intentionally one page:
+The scope is exactly three pages:
 
-- **One workspace:** `/learn/[slug]` is the entire product surface. `/` redirects
-  straight into the Git Essentials lesson; there is no landing page or catalog.
-- **One track:** Git Essentials, three lessons, with the lesson outline kept in
-  the sidebar.
+- **`/` — course overview:** the Git Essentials track and its three lessons.
+- **`/learn/[slug]` — lesson workspace:** guided content plus the primary
+  terminal WebSocket experience.
+- **`/playground` — terminal playground:** a free sandbox with no lesson
+  attached, backed by the same WebSocket consumer.
 - **No authentication:** no sign-in, sign-up, accounts, or learner database.
 - **No external backend services:** SQLite, in-memory Channels, and a local
   bubblewrap sandbox. No AWS, Google Cloud, hosted Redis, or remote terminal.
@@ -246,6 +249,10 @@ reason. Input and output are never written to the database.
 | `GET` | `/api/v1/catalog/lessons/<slug>/` | Lesson content, outline, prev/next |
 | `POST` | `/api/v1/terminal/sessions/` | Create a one-time terminal ticket |
 
+The ticket endpoint accepts an optional `lesson_slug`. Lesson pages send it so
+the sandbox starts with that lesson's files; the playground omits it and starts
+with an empty home directory.
+
 Example:
 
 ```bash
@@ -273,8 +280,9 @@ Current suites:
   bubblewrap isolation (network + filesystem).
 - **7 frontend tests** covering content rendering, XSS-safe rich text, command
   execution wiring, and WebSocket URL construction.
-- **2 Playwright tests** covering the direct-to-lesson boot, lesson navigation,
-  a command round-trip through xterm.js, and executable lesson scripts.
+- **3 Playwright tests** covering the three-page flow, a lesson command
+  round-trip through xterm.js, executable lesson scripts, and the standalone
+  playground terminal.
 
 The E2E terminal test automatically skips when the host cannot run bubblewrap.
 Backend sandbox tests do the same, so the suite remains portable.
@@ -288,8 +296,8 @@ Backend sandbox tests do the same, so the suite remains portable.
 2. **Frontend** — npm install from lockfile, ESLint, TypeScript, Vitest, Prettier
    check, and a production Next.js build.
 3. **E2E** — builds and starts the Docker Compose stack, verifies the API,
-   `/api/health/`, `check_terminal`, the lesson route, then runs Playwright
-   against the containers with Chromium.
+   `/api/health/`, `check_terminal`, the course/lesson/playground routes, then
+   runs Playwright against the containers with Chromium.
 
 No hosted services, Docker registry, or secrets are required. Tests use SQLite
 and the in-memory Channels layer.
@@ -368,8 +376,9 @@ backend/
   tests/                     API + WebSocket + real-shell integration tests
 frontend/
   Dockerfile                 Next.js standalone multi-stage image
-  src/app/page.tsx           Redirects directly into the lesson workspace
-  src/app/(lesson)/          The only page: lesson + terminal
+  src/app/page.tsx           Git Essentials course overview
+  src/app/(lesson)/learn/    Lesson workspace + terminal
+  src/app/(lesson)/playground/ Standalone terminal playground
   src/components/lesson/     xterm panel, command blocks, lesson renderer
   src/lib/                   Typed API client, content types, design tokens
   e2e/                       Playwright flows
@@ -377,9 +386,10 @@ frontend/
 
 ## Design decisions & tradeoffs
 
-- **One page by design.** There is no landing page, catalog, or course detail
-  route. The root redirects into the lesson workspace, and the sidebar links to
-  the three Git lessons.
+- **Exactly three pages.** The course overview links into the three Git
+  lessons; the lesson workspace and playground both use the same terminal
+  WebSocket consumer. There are no marketing pages, auth screens, or extra
+  product surfaces.
 - **Docker for packaging, bubblewrap for execution.** Compose gives reproducible
   images, a read-only runtime, healthchecks, and one-command startup. Bubblewrap
   still creates a fresh namespace and filesystem for every terminal session;

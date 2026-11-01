@@ -3,7 +3,7 @@ import { AppHeader } from "@/components/site/app-header";
 export default function LessonLoading() {
   return (
     <div className="bg-cream flex min-h-dvh flex-col">
-      <AppHeader courseTitle="Loading lesson" />
+      <AppHeader title="Loading lesson" />
       <div className="min-h-0 flex-1">
         <div className="lg:grid lg:h-[calc(100dvh-4rem)] lg:grid-cols-[270px_minmax(380px,520px)_minmax(0,1fr)]">
           <aside className="border-line bg-cream/60 hidden border-r p-5 lg:block">

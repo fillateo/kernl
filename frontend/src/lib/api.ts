@@ -51,7 +51,7 @@ export const getLesson = cache(async (slug: string): Promise<Lesson | null> => {
 });
 
 export async function createTerminalSession(
-  lessonSlug: string,
+  lessonSlug?: string,
 ): Promise<TerminalSession> {
   let response: Response;
   try {
@@ -61,7 +61,7 @@ export async function createTerminalSession(
         "Content-Type": "application/json",
         Accept: "application/json",
       },
-      body: JSON.stringify({ lesson_slug: lessonSlug }),
+      body: JSON.stringify(lessonSlug ? { lesson_slug: lessonSlug } : {}),
     });
   } catch {
     throw new ApiError(

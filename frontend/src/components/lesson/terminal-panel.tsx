@@ -71,7 +71,7 @@ const TERMINAL_THEME = {
 
 export const TerminalPanel = forwardRef<
   TerminalHandle,
-  { lessonSlug: string; className?: string }
+  { lessonSlug?: string; className?: string }
 >(function TerminalPanel({ lessonSlug, className = "" }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
