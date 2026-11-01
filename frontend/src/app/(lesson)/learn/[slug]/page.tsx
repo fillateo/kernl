@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { LessonWorkspace } from "@/components/lesson/lesson-workspace";
+import { AppHeader } from "@/components/site/app-header";
 import { getLesson } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -25,5 +26,12 @@ export default async function LessonPage({ params }: LessonPageProps) {
   const lesson = await getLesson(slug);
   if (!lesson) notFound();
 
-  return <LessonWorkspace lesson={lesson} />;
+  return (
+    <div className="bg-cream flex min-h-dvh flex-col">
+      <AppHeader courseTitle={lesson.course.title} />
+      <div className="min-h-0 flex-1">
+        <LessonWorkspace lesson={lesson} />
+      </div>
+    </div>
+  );
 }

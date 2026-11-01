@@ -19,6 +19,13 @@ test("the three-page learning flow is navigable", async ({ page }) => {
   ).toBeVisible();
   await expect(page.getByRole("heading", { name: "Directory listing" })).toBeVisible();
   await expect(page.locator(".xterm-screen")).toBeVisible();
+
+  // The workspace header must follow the selected course, not a hard-coded one.
+  await page.goto("/learn/your-first-repository");
+  await expect(
+    page.getByRole("heading", { name: "Your First Repository" }),
+  ).toBeVisible();
+  await expect(page.locator("header")).toContainText("Git Essentials");
 });
 
 test("a lesson command runs in a real sandbox", async ({ page, request }) => {
