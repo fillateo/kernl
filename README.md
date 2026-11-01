@@ -24,8 +24,9 @@ The scope is exactly three pages:
 - **`/playground` — terminal playground:** a free sandbox with no lesson
   attached, backed by the same WebSocket consumer.
 - **No authentication:** no sign-in, sign-up, accounts, or learner database.
-- **No external backend services:** SQLite, in-memory Channels, and a local
-  bubblewrap sandbox. No AWS, Google Cloud, hosted Redis, or remote terminal.
+- **No external backend services:** local PostgreSQL in Docker (SQLite for
+  native development), in-process Channels, and a local bubblewrap sandbox. No
+  AWS, Google Cloud, hosted Redis, or remote terminal.
 - **Tests wired into CI:** Django/Channels tests, Next.js unit tests, and
   Playwright browser tests.
 
@@ -33,11 +34,12 @@ The scope is exactly three pages:
 
 | Layer | Choice |
 | --- | --- |
-| Backend | Django 5.2 LTS, Django REST Framework, Channels 4, Daphne |
+| Backend | Django 5.2 LTS, Django REST Framework, Channels 4, Uvicorn (Docker) / Daphne (native) |
 | Frontend | Next.js 16 App Router, React 19, TypeScript, Tailwind CSS 4 |
 | Terminal | xterm.js 6 + WebSockets + a real PTY + bubblewrap |
 | Containers | Docker multi-stage images + Docker Compose |
-| Persistence | SQLite by default; any `DATABASE_URL` supported by Django |
+| Persistence | Local PostgreSQL in Docker; SQLite for native development |
+| Workers | Uvicorn with configurable multi-worker ASGI runtime |
 | Tests | pytest, pytest-django, pytest-asyncio, Vitest, Testing Library, Playwright |
 | CI | GitHub Actions, including a Docker Compose E2E job |
 
@@ -61,8 +63,10 @@ make docker-up
 
 Open **http://localhost:3000**.
 
-The first start migrates and seeds the SQLite database inside a named volume.
-The stack is ready when both containers report `healthy`:
+The first start migrates and seeds PostgreSQL in a named volume. The API
+container runs two Uvicorn workers by default, so HTTP ticket creation and the
+WebSocket can land on different workers and still see the same session. The
+stack is ready when the database, API, and web containers report `healthy`:
 
 ```bash
 docker compose ps
@@ -85,17 +89,33 @@ change the secret, allowed hosts, or browser-facing URLs.
 
 ```text
 docker compose
-├── api-init   one-shot chown of the SQLite volume, exits
-├── api        Daphne + Channels + bubblewrap sandbox
+├── db         PostgreSQL 17, internal-only, named volume
+├── api        Uvicorn workers + Channels + bubblewrap sandbox
 │              non-root uid 10001, read-only rootfs, cap_drop ALL
-│              named volume /app/data, tmpfs /tmp
+│              tmpfs /tmp, persistent connections to db
 └── web        Next.js standalone server
                non-root node user, read-only rootfs
                exposed at 127.0.0.1:3000
 ```
 
 Only `127.0.0.1:3000` and `127.0.0.1:8000` are published. The web container
-reaches the API over the private Compose network at `http://api:8000`.
+reaches the API over the private Compose network at `http://api:8000`; Postgres
+is never exposed to the host.
+
+### Scaling model
+
+- **Two Uvicorn workers by default**, configurable with `WEB_CONCURRENCY`.
+- Session tickets live in PostgreSQL, so HTTP and WebSocket traffic can be
+  served by different workers without sticky sessions.
+- Each terminal is an independent PTY process. The true capacity ceiling is
+  terminal processes, CPU, memory, and file descriptors—not WebSocket
+  connections. The Compose API has explicit PID/memory limits, and
+  `TERMINAL_MAX_SESSIONS` bounds concurrent tickets.
+- Increase `WEB_CONCURRENCY` and the terminal/process limits together; do not
+  raise only one.
+- For multiple host replicas, add a WebSocket-capable reverse proxy in front of
+  the API and increase PostgreSQL connection capacity. The application keeps no
+  per-worker terminal session state.
 
 ### Why the API has relaxed Docker security profiles
 
@@ -120,7 +140,7 @@ still hardened:
 - `no-new-privileges:true`
 - no Docker socket, host source bind, or host home mount
 - `/tmp` is an ephemeral, size-limited tmpfs
-- only the SQLite volume is writable
+- only the PostgreSQL data volume is writable
 
 The inner shell still has all of the bubblewrap guarantees described below.
 This relaxed outer profile is a deliberate Docker-on-Linux tradeoff, not a
@@ -275,14 +295,14 @@ make docker-e2e     # Playwright against the running Compose stack
 
 Current suites:
 
-- **19 backend tests** covering lesson delivery, session issuing, ticket
-  lifecycle, origin rejection, WebSocket I/O, input validation, idle timeout,
-  output limits, and real bubblewrap isolation (network + filesystem).
+- **20 backend tests** covering lesson delivery, session issuing, ticket
+  lifecycle, origin rejection, concurrent WebSocket sessions, input validation,
+  idle timeout, output limits, and real bubblewrap isolation (network + filesystem).
 - **7 frontend tests** covering content rendering, XSS-safe rich text, command
   execution wiring, and WebSocket URL construction.
-- **3 Playwright tests** covering the three-page flow, a lesson command
-  round-trip through xterm.js, executable lesson scripts, and the standalone
-  playground terminal.
+- **4 Playwright tests** covering the three-page flow, lesson and playground
+  terminals, executable lesson scripts, and three isolated terminal sessions
+  running concurrently.
 
 The E2E terminal test automatically skips when the host cannot run bubblewrap.
 Backend sandbox tests do the same, so the suite remains portable.
@@ -291,16 +311,17 @@ Backend sandbox tests do the same, so the suite remains portable.
 
 `.github/workflows/ci.yml` runs three jobs on every push and pull request:
 
-1. **Backend** — Ruff, Django checks, migration drift check, pytest with
-   coverage, artifact upload.
+1. **Backend** — Ruff, Django checks, migration drift check, and pytest against
+   PostgreSQL with coverage and artifact upload.
 2. **Frontend** — npm install from lockfile, ESLint, TypeScript, Vitest, Prettier
    check, and a production Next.js build.
 3. **E2E** — builds and starts the Docker Compose stack, verifies the API,
    `/api/health/`, `check_terminal`, the course/lesson/playground routes, then
    runs Playwright against the containers with Chromium.
 
-No hosted services, Docker registry, or secrets are required. Tests use SQLite
-and the in-memory Channels layer.
+No hosted services, Docker registry, or secrets are required. The CI backend
+job uses a local PostgreSQL service; Docker E2E uses the Compose PostgreSQL
+database and two Uvicorn workers.
 
 ## Configuration
 
@@ -314,7 +335,10 @@ and the in-memory Channels layer.
 | `NEXT_PUBLIC_API_URL` | `http://127.0.0.1:8000` | Build arg; baked into browser JS |
 | `NEXT_PUBLIC_WS_URL` | `ws://127.0.0.1:8000` | Build arg; baked into browser JS |
 | `API_URL` | `http://api:8000` | Runtime server-side lesson fetch |
-| `DATABASE_URL` | `sqlite:////app/data/db.sqlite3` | Named volume |
+| `POSTGRES_PASSWORD` | local-only value | Local PostgreSQL password |
+| `DATABASE_URL` | `postgres://kernl:...@db:5432/kernl` | Internal Compose network |
+| `DB_CONN_MAX_AGE` | `60` | Persistent PostgreSQL connections |
+| `WEB_CONCURRENCY` | `2` | Uvicorn worker processes |
 | `TERMINAL_WORK_ROOT` | `/tmp/kernl-terminal` | Ephemeral tmpfs |
 
 `NEXT_PUBLIC_*` values are inlined by Next.js at build time. If you change the
@@ -332,7 +356,7 @@ docker compose up -d web
 | `DJANGO_DEBUG` | `true` | Use `false` in production |
 | `DJANGO_SECRET_KEY` | dev-only value | Change outside local development |
 | `DJANGO_ALLOWED_HOSTS` | `localhost,127.0.0.1` | Also used for WebSocket origins |
-| `DATABASE_URL` | `sqlite:///backend/db.sqlite3` | Any Django-supported database |
+| `DATABASE_URL` | `sqlite:///backend/db.sqlite3` | Native default; Docker uses Postgres |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:3000,...` | Browser origin for ticket POSTs |
 | `TERMINAL_SESSION_TTL_SECONDS` | `1800` | Time allowed to claim a ticket |
 | `TERMINAL_IDLE_TIMEOUT_SECONDS` | `600` | No-input timeout |
@@ -366,10 +390,10 @@ files and the matching lesson outline in the page sidebar.
 ## Project layout
 
 ```text
-compose.yaml                 API + web + one-shot volume initializer
+compose.yaml                 Postgres + multi-worker API + web
 backend/
   Dockerfile                 Python + bubblewrap production image
-  docker/start-api.sh        migrate, seed, then start Daphne
+  docker/start-api.sh        migrate, seed, then start Uvicorn workers
   config/                    Django settings, ASGI, URLs
   apps/catalog/              Courses, modules, lessons, API, seed data
   apps/terminal/             Session tickets, Channels consumer, bwrap PTY
@@ -400,8 +424,11 @@ frontend/
 - **Direct WebSocket rather than proxying through Next.js.** This keeps the
   Channels consumer simple and avoids buffering issues in the Node layer. CORS
   and origin validation are configured explicitly.
-- **SQLite + in-memory Channels.** Perfect for a local single-process app. For
-  multiple ASGI workers, replace the channel layer with a local Redis instance.
+- **PostgreSQL + multiple Uvicorn workers in Docker.** Session tickets are
+  database-backed, so HTTP and WebSocket requests can be handled by different
+  workers. Native development still defaults to SQLite. The in-memory Channels
+  layer is only used for local lifecycle; this consumer does not depend on
+  cross-worker group messaging.
 - **No auth.** Deliberate challenge constraint. The app is not intended to be
   exposed publicly.
 - **Progress is not persisted.** The progress bar reflects lesson position, not

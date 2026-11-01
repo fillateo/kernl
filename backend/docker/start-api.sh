@@ -6,8 +6,12 @@ cd /app
 python manage.py migrate --noinput
 python manage.py seed_catalog --prune
 
-exec daphne \
-  --bind 0.0.0.0 \
+exec uvicorn config.asgi:application \
+  --host 0.0.0.0 \
   --port 8000 \
-  --proxy-headers \
-  config.asgi:application
+  --workers "${WEB_CONCURRENCY:-2}" \
+  --http httptools \
+  --ws auto \
+  --timeout-keep-alive 75 \
+  --lifespan off \
+  --no-server-header

@@ -198,7 +198,13 @@ class TerminalConsumer(AsyncJsonWebsocketConsumer):
                     await self.send_json({"type": "output", "data": text})
         except asyncio.CancelledError:
             raise
-        except Exception:
+        except Exception as exc:
+            # Uvicorn raises ClientDisconnected when a browser navigates away
+            # mid-write. That is a normal disconnect, not a terminal failure.
+            if exc.__class__.__name__ in {"ClientDisconnected", "WebSocketDisconnect"}:
+                self._close_reason = "client_disconnect"
+                await self._cleanup()
+                return
             logger.exception("Terminal read failed for session %s", self._session_id)
             self._close_reason = "read_error"
             await self._send_error(
@@ -277,11 +283,10 @@ class TerminalConsumer(AsyncJsonWebsocketConsumer):
         now = timezone.now()
         try:
             with transaction.atomic():
-                session = (
-                    TerminalSession.objects.select_for_update()
-                    .select_related("lesson")
-                    .get(pk=session_id)
-                )
+                # Lock only the ticket row. PostgreSQL rejects FOR UPDATE on
+                # the nullable side of the outer join that select_related
+                # would introduce for an optional lesson.
+                session = TerminalSession.objects.select_for_update().get(pk=session_id)
                 if (
                     session.connected_at is not None
                     or session.closed_at is not None

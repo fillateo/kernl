@@ -96,3 +96,43 @@ test("the playground terminal works without a lesson", async ({ page, request })
     timeout: 10_000,
   });
 });
+
+test("multiple terminal sessions stay isolated", async ({ page, request }) => {
+  const healthResponse = await request.get(
+    process.env.E2E_HEALTH_URL ?? "http://127.0.0.1:8000/api/health/",
+  );
+  const health = (await healthResponse.json()) as {
+    terminal?: { sandbox?: string };
+  };
+  test.skip(
+    health.terminal?.sandbox !== "available",
+    "bubblewrap is not available on this host",
+  );
+
+  const pages = await Promise.all(
+    Array.from({ length: 3 }, () => page.context().newPage()),
+  );
+
+  await Promise.all(pages.map((terminalPage) => terminalPage.goto("/playground")));
+  await Promise.all(
+    pages.map((terminalPage) =>
+      expect(terminalPage.getByText("Connected", { exact: true })).toBeVisible({
+        timeout: 20_000,
+      }),
+    ),
+  );
+
+  await Promise.all(
+    pages.map(async (terminalPage, index) => {
+      await terminalPage.locator(".xterm-screen").click();
+      await terminalPage.keyboard.type(`echo session-${index}`);
+      await terminalPage.keyboard.press("Enter");
+      await expect(terminalPage.locator(".xterm-rows")).toContainText(
+        `session-${index}`,
+        { timeout: 10_000 },
+      );
+    }),
+  );
+
+  await Promise.all(pages.map((terminalPage) => terminalPage.close()));
+});

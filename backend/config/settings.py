@@ -132,8 +132,9 @@ CORS_ALLOW_CREDENTIALS = False
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS")
 
 # Channels -------------------------------------------------------------------
-# In-memory is intentional for this single-process, local-first challenge.
-# Swap in channels-redis if you need to scale beyond one ASGI worker.
+# Each terminal consumer sends directly to its own WebSocket and does not use
+# channel groups, so the in-memory layer is sufficient across Uvicorn workers.
+# Add a shared layer such as Redis if cross-worker group messaging is introduced.
 
 CHANNEL_LAYERS = {
     "default": {

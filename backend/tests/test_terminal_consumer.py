@@ -190,3 +190,46 @@ async def test_idle_timeout_closes_the_socket(settings):
     await database_sync_to_async(session.refresh_from_db)()
     assert session.closed_at is not None
     assert session.close_reason == "idle_timeout"
+
+
+@database_sync_to_async
+def _create_sessions(count: int) -> list[TerminalSession]:
+    expires = timezone.now() + timedelta(minutes=10)
+    return [TerminalSession.objects.create(expires_at=expires) for _ in range(count)]
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.asyncio
+async def test_concurrent_terminal_sockets_are_independent():
+    sessions = await _create_sessions(3)
+    communicators = [_communicator(session.id) for session in sessions]
+
+    connections = await asyncio.gather(*(socket.connect() for socket in communicators))
+    assert all(connected for connected, _ in connections)
+
+    await asyncio.gather(
+        *(socket.receive_json_from(timeout=2) for socket in communicators)
+    )
+    await asyncio.gather(
+        *(socket.receive_json_from(timeout=2) for socket in communicators)
+    )
+
+    await asyncio.gather(
+        *(
+            socket.send_json_to({"type": "input", "data": f"echo {index}\n"})
+            for index, socket in enumerate(communicators)
+        )
+    )
+    outputs = await asyncio.gather(
+        *(socket.receive_json_from(timeout=2) for socket in communicators)
+    )
+
+    assert sorted(message["data"] for message in outputs) == [
+        "echo:echo 0\n",
+        "echo:echo 1\n",
+        "echo:echo 2\n",
+    ]
+
+    await asyncio.gather(*(socket.disconnect() for socket in communicators))
+    assert len(FakeShell.instances) == 3
+    assert all(shell.closed for shell in FakeShell.instances)

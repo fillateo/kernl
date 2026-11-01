@@ -11,22 +11,25 @@ x-logging: &default-logging
     max-file: "3"
 
 services:
-  # One-shot initializer for the named SQLite volume. It runs as root only long
-  # enough to give the unprivileged application user ownership, then exits.
-  api-init:
-    build: *api-build
-    image: kernl-api:local
-    user: "0:0"
-    entrypoint: ["/bin/sh", "-c", "chown -R 10001:10001 /app/data"]
-    read_only: true
-    cap_drop: [ALL]
-    cap_add: [CHOWN]
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: kernl
+      POSTGRES_USER: kernl
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kernl-local}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kernl -d kernl"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
     security_opt:
       - no-new-privileges:true
-    volumes:
-      - kernl_data:/app/data
-    network_mode: none
-    restart: "no"
+    pids_limit: 128
+    mem_limit: 512m
+    restart: unless-stopped
+    logging: *default-logging
 
   api:
     build: *api-build
@@ -35,8 +38,8 @@ services:
     user: "10001:10001"
     read_only: true
     cap_drop: [ALL]
-    pids_limit: 256
-    mem_limit: 768m
+    pids_limit: 512
+    mem_limit: 1g
     # bubblewrap must create nested namespaces and mount a private /proc.
     # The application container itself remains non-root, read-only, and
     # capability-free; these options only unlock the nested sandbox.
@@ -47,8 +50,6 @@ services:
       - systempaths=unconfined
     tmpfs:
       - /tmp:size=256m,exec,nosuid,mode=1777
-    volumes:
-      - kernl_data:/app/data
     environment:
       DJANGO_DEBUG: "false"
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-kernl-local-compose-change-me}
@@ -56,7 +57,9 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       CSRF_COOKIE_SECURE: "false"
-      DATABASE_URL: sqlite:////app/data/db.sqlite3
+      DATABASE_URL: postgres://kernl:${POSTGRES_PASSWORD:-kernl-local}@db:5432/kernl
+      DB_CONN_MAX_AGE: "60"
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
       TERMINAL_WORK_ROOT: /tmp/kernl-terminal
       TERMINAL_MAX_SESSIONS: "25"
       PYTHONUNBUFFERED: "1"
@@ -64,8 +67,8 @@ services:
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
-      api-init:
-        condition: service_completed_successfully
+      db:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/api/health/"]
       interval: 5s
@@ -122,4 +125,4 @@ services:
     logging: *default-logging
 
 volumes:
-  kernl_data:
+  postgres_data:

@@ -20,6 +20,21 @@ jobs:
     timeout-minutes: 15
     env:
       DJANGO_DEBUG: "true"
+      DATABASE_URL: postgres://kernl:kernl@127.0.0.1:5432/kernl
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: kernl
+          POSTGRES_USER: kernl
+          POSTGRES_PASSWORD: kernl
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kernl -d kernl"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
     steps:
       - uses: actions/checkout@v4
 
