@@ -138,3 +138,55 @@ async def test_invalid_messages_return_errors_without_closing(terminal_session):
     assert await communicator.receive_json_from(timeout=2) == {"type": "pong"}
 
     await communicator.disconnect()
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.asyncio
+async def test_output_limit_closes_the_socket(settings):
+    settings.TERMINAL_MAX_OUTPUT_BYTES = 8
+    session = await database_sync_to_async(_create_session)(
+        expires_at=timezone.now() + timedelta(minutes=10)
+    )
+    communicator = _communicator(session.id)
+    await communicator.connect()
+
+    assert (await communicator.receive_json_from(timeout=2))["type"] == "ready"
+    error = await communicator.receive_json_from(timeout=2)
+    assert error["code"] == "output_limit"
+
+    close_event = await communicator.receive_output(timeout=2)
+    assert close_event["type"] == "websocket.close"
+    assert close_event["code"] == 1008
+
+    await communicator.disconnect()
+    await asyncio.sleep(0.1)
+    await database_sync_to_async(session.refresh_from_db)()
+    assert session.closed_at is not None
+    assert session.close_reason == "output_limit"
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.asyncio
+async def test_idle_timeout_closes_the_socket(settings):
+    settings.TERMINAL_IDLE_TIMEOUT_SECONDS = 0.1
+    settings.TERMINAL_MAX_LIFETIME_SECONDS = 30
+    session = await database_sync_to_async(_create_session)(
+        expires_at=timezone.now() + timedelta(minutes=10)
+    )
+    communicator = _communicator(session.id)
+    await communicator.connect()
+
+    assert (await communicator.receive_json_from(timeout=2))["type"] == "ready"
+    assert (await communicator.receive_json_from(timeout=2))["type"] == "output"
+    error = await communicator.receive_json_from(timeout=3)
+    assert error["code"] == "idle_timeout"
+
+    close_event = await communicator.receive_output(timeout=2)
+    assert close_event["type"] == "websocket.close"
+    assert close_event["code"] == 4001
+
+    await communicator.disconnect()
+    await asyncio.sleep(0.1)
+    await database_sync_to_async(session.refresh_from_db)()
+    assert session.closed_at is not None
+    assert session.close_reason == "idle_timeout"

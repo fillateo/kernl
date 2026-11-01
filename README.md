@@ -275,9 +275,9 @@ make docker-e2e     # Playwright against the running Compose stack
 
 Current suites:
 
-- **17 backend tests** covering lesson delivery, session issuing, ticket
-  lifecycle, origin rejection, WebSocket I/O, input validation, and real
-  bubblewrap isolation (network + filesystem).
+- **19 backend tests** covering lesson delivery, session issuing, ticket
+  lifecycle, origin rejection, WebSocket I/O, input validation, idle timeout,
+  output limits, and real bubblewrap isolation (network + filesystem).
 - **7 frontend tests** covering content rendering, XSS-safe rich text, command
   execution wiring, and WebSocket URL construction.
 - **3 Playwright tests** covering the three-page flow, a lesson command
