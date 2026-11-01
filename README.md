@@ -73,6 +73,7 @@ Useful commands:
 
 ```bash
 make docker-check   # boot a real shell inside the API container
+make docker-e2e     # Playwright against the Compose stack
 make docker-down    # stop the stack, keep the database volume
 make docker-reset   # stop and delete the database volume
 ```
@@ -244,7 +245,7 @@ reason. Input and output are never written to the database.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/api/health/` | Database and sandbox health |
+| `GET` | `/api/health/` | Database health and a cached real bubblewrap probe |
 | `GET` | `/api/v1/catalog/courses/` | Published courses |
 | `GET` | `/api/v1/catalog/courses/<slug>/` | Course + modules + lessons |
 | `GET` | `/api/v1/catalog/lessons/<slug>/` | Lesson content + prev/next |
@@ -267,16 +268,12 @@ make test           # backend + frontend
 make lint           # Ruff, ESLint, TypeScript, Prettier
 make e2e-install    # once per machine
 make e2e            # Playwright (starts native servers)
-
-# Run Playwright against an already-running Docker stack:
-PLAYWRIGHT_BASE_URL=http://localhost:3000 \
-  E2E_HEALTH_URL=http://127.0.0.1:8000/api/health/ \
-  npm --prefix frontend run e2e
+make docker-e2e     # Playwright against the running Compose stack
 ```
 
 Current suites:
 
-- **19 backend tests** covering the catalog API, session issuing, ticket
+- **20 backend tests** covering the catalog API, session issuing, ticket
   lifecycle, origin rejection, WebSocket I/O, input validation, and real
   bubblewrap isolation (network + filesystem).
 - **10 frontend tests** covering content rendering, XSS-safe rich text, command

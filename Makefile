@@ -3,7 +3,7 @@ PIP := backend/.venv/bin/pip
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install setup dev backend frontend migrate seed test test-backend test-frontend lint format build e2e e2e-install docker-build docker-up docker-down docker-reset docker-logs docker-check clean
+.PHONY: help install setup dev backend frontend migrate seed test test-backend test-frontend lint format build e2e e2e-install docker-build docker-up docker-down docker-reset docker-logs docker-check docker-e2e clean
 
 help:
 	@printf "\nKernl — local-first terminal courses\n\n"
@@ -19,6 +19,7 @@ help:
 	@printf "  make docker-up     Build and start the Docker Compose stack\n"
 	@printf "  make docker-down   Stop the Docker Compose stack\n"
 	@printf "  make docker-check  Verify the sandbox inside the API container\n"
+	@printf "  make docker-e2e    Run Playwright against the Compose stack\n"
 	@printf "  make clean        Remove local databases, builds, and caches\n\n"
 
 install:
@@ -87,6 +88,10 @@ docker-logs:
 
 docker-check:
 	docker compose exec -T api python manage.py check_terminal
+
+docker-e2e:
+	docker compose up -d --wait --wait-timeout 180
+	cd frontend && PLAYWRIGHT_BASE_URL=http://localhost:3000 E2E_HEALTH_URL=http://127.0.0.1:8000/api/health/ npm run e2e
 
 clean:
 	docker compose down -v --remove-orphans 2>/dev/null || true
