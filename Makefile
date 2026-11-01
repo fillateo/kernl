@@ -3,7 +3,7 @@ PIP := backend/.venv/bin/pip
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install setup dev backend frontend migrate seed test test-backend test-frontend lint format build e2e e2e-install clean
+.PHONY: help install setup dev backend frontend migrate seed test test-backend test-frontend lint format build e2e e2e-install docker-build docker-up docker-down docker-reset docker-logs docker-check clean
 
 help:
 	@printf "\nKernl — local-first terminal courses\n\n"
@@ -16,6 +16,9 @@ help:
 	@printf "  make build        Build the production Next.js bundle\n"
 	@printf "  make e2e-install  Install Chromium for Playwright\n"
 	@printf "  make e2e          Run the Playwright browser tests\n"
+	@printf "  make docker-up     Build and start the Docker Compose stack\n"
+	@printf "  make docker-down   Stop the Docker Compose stack\n"
+	@printf "  make docker-check  Verify the sandbox inside the API container\n"
 	@printf "  make clean        Remove local databases, builds, and caches\n\n"
 
 install:
@@ -66,7 +69,27 @@ e2e-install:
 e2e:
 	cd frontend && npm run e2e
 
+docker-build:
+	docker compose build
+
+docker-up:
+	docker compose up --build -d --wait --wait-timeout 180
+	docker compose ps
+
+docker-down:
+	docker compose down
+
+docker-reset:
+	docker compose down -v
+
+docker-logs:
+	docker compose logs -f --tail=100
+
+docker-check:
+	docker compose exec -T api python manage.py check_terminal
+
 clean:
+	docker compose down -v --remove-orphans 2>/dev/null || true
 	rm -rf backend/db.sqlite3 backend/var backend/.pytest_cache backend/.ruff_cache
 	find backend/staticfiles -mindepth 1 ! -name .gitkeep -delete
 	rm -rf frontend/.next frontend/test-results frontend/playwright-report frontend/coverage

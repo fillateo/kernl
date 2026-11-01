@@ -46,6 +46,14 @@ test("a lesson command runs in a real sandbox", async ({ page, request }) => {
     timeout: 10_000,
   });
 
+  await page.keyboard.type(
+    "printf '#!/bin/sh\\necho SCRIPT_OK\\n' > run.sh && chmod +x run.sh && ./run.sh",
+  );
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("SCRIPT_OK", {
+    timeout: 10_000,
+  });
+
   await page.getByRole("button", { name: /^run$/i }).first().click();
   await expect(page.locator(".xterm-rows")).toContainText("README.md", {
     timeout: 10_000,

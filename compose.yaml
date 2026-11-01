@@ -1,0 +1,126 @@
+name: kernl
+
+x-api-build: &api-build
+  context: ./backend
+  dockerfile: Dockerfile
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # One-shot initializer for the named SQLite volume. It runs as root only long
+  # enough to give the unprivileged application user ownership, then exits.
+  api-init:
+    build: *api-build
+    image: kernl-api:local
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-c", "chown -R 10001:10001 /app/data"]
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN]
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - kernl_data:/app/data
+    network_mode: none
+    restart: "no"
+
+  api:
+    build: *api-build
+    image: kernl-api:local
+    init: true
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    pids_limit: 256
+    mem_limit: 768m
+    # bubblewrap must create nested namespaces and mount a private /proc.
+    # The application container itself remains non-root, read-only, and
+    # capability-free; these options only unlock the nested sandbox.
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=unconfined
+      - apparmor=unconfined
+      - systempaths=unconfined
+    tmpfs:
+      - /tmp:size=256m,exec,nosuid,mode=1777
+    volumes:
+      - kernl_data:/app/data
+    environment:
+      DJANGO_DEBUG: "false"
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-kernl-local-compose-change-me}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,api}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      SESSION_COOKIE_SECURE: "false"
+      CSRF_COOKIE_SECURE: "false"
+      DATABASE_URL: sqlite:////app/data/db.sqlite3
+      TERMINAL_WORK_ROOT: /tmp/kernl-terminal
+      TERMINAL_MAX_SESSIONS: "25"
+      PYTHONUNBUFFERED: "1"
+      TZ: UTC
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      api-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/api/health/"]
+      interval: 5s
+      timeout: 3s
+      retries: 18
+      start_period: 20s
+    stop_grace_period: 10s
+    restart: unless-stopped
+    logging: *default-logging
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://127.0.0.1:8000}
+        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-ws://127.0.0.1:8000}
+    image: kernl-web:local
+    init: true
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    pids_limit: 128
+    mem_limit: 512m
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,mode=1777
+      - /app/.next/cache:size=64m,mode=1777
+    environment:
+      NODE_ENV: production
+      API_URL: http://api:8000
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 15s
+    stop_grace_period: 10s
+    restart: unless-stopped
+    logging: *default-logging
+
+volumes:
+  kernl_data:
