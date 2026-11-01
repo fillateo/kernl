@@ -1,4 +1,4 @@
-import { ArrowLeft, Circle, Clock3, LockKeyhole } from "lucide-react";
+import { Circle, Clock3, LockKeyhole } from "lucide-react";
 import Link from "next/link";
 
 import { CourseGlyph } from "@/components/course/course-icon";
@@ -88,14 +88,7 @@ export function LessonSidebar({ lesson }: { lesson: Lesson }) {
   return (
     <aside className="border-line bg-cream/70 hidden h-full min-h-0 flex-col border-r lg:flex">
       <div className="border-line/80 border-b p-5">
-        <Link
-          href={`/courses/${course.slug}`}
-          className="text-muted hover:text-ink inline-flex items-center gap-1.5 text-[11px] font-medium transition-colors"
-        >
-          <ArrowLeft className="size-3.5" />
-          Course overview
-        </Link>
-        <div className="mt-5 flex items-start gap-3">
+        <div className="flex items-start gap-3">
           <span className="border-line bg-paper grid size-9 shrink-0 place-items-center rounded-xl border">
             <CourseGlyph icon={course.icon} className="text-ink size-4" />
           </span>

@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowUpRight, TerminalSquare } from "lucide-react";
+import { ArrowRight, TerminalSquare } from "lucide-react";
 import Link from "next/link";
 
 import { Logo } from "@/components/site/logo";
@@ -21,21 +21,17 @@ export default function NotFound() {
             That command isn&apos;t in this sandbox.
           </h1>
           <p className="text-muted mx-auto mt-5 max-w-md text-sm leading-6">
-            The page you followed does not exist, or the lesson has moved. Head back to
-            the course library and open a fresh prompt.
+            The lesson you followed does not exist. Open the workspace and start from
+            the first prompt.
           </p>
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Link href="/#courses" className="btn btn-dark">
-              <ArrowLeft className="size-4" />
-              Browse courses
-            </Link>
-            <Link href="/#how-it-works" className="btn btn-outline">
-              How it works
-              <ArrowUpRight className="size-4" />
+          <div className="mt-8 flex justify-center">
+            <Link href="/learn/your-first-repository" className="btn btn-dark">
+              Open the lesson
+              <ArrowRight className="size-4" />
             </Link>
           </div>
           <code className="text-muted mt-10 block font-mono text-[11px]">
-            learner@kernl:~$ find /page -name &quot;this-one&quot;
+            learner@kernl:~$ find /lesson -name &quot;this-one&quot;
             <br />
             <span className="text-coral">find: no such file or directory</span>
           </code>

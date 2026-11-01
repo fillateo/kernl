@@ -1,35 +1,30 @@
 import { expect, test } from "@playwright/test";
 
-test("the three-page learning flow is navigable", async ({ page }) => {
+test("boots directly into the Git lesson workspace", async ({ page }) => {
   await page.goto("/");
 
-  await expect(
-    page.getByRole("heading", { name: /Learn the terminal/i }),
-  ).toBeVisible();
-  await expect(page.getByRole("heading", { name: /Pick a path/i })).toBeVisible();
-
-  await page.getByRole("link", { name: /Start with Linux/i }).click();
-  await expect(page).toHaveURL(/\/courses\/linux-foundations\/?$/);
-  await expect(page.getByRole("heading", { name: "Linux Foundations" })).toBeVisible();
-
-  await page.getByRole("link", { name: /Start the first lesson/i }).click();
-  await expect(page).toHaveURL(/\/learn\/working-with-linux-commands\/?$/);
-  await expect(
-    page.getByRole("heading", { name: "Working With Linux Commands" }),
-  ).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Directory listing" })).toBeVisible();
-  await expect(page.locator(".xterm-screen")).toBeVisible();
-
-  // The workspace header must follow the selected course, not a hard-coded one.
-  await page.goto("/learn/your-first-repository");
+  await expect(page).toHaveURL(/\/learn\/your-first-repository\/?$/);
   await expect(
     page.getByRole("heading", { name: "Your First Repository" }),
+  ).toBeVisible();
+  await expect(page.locator("header")).toContainText("Git Essentials");
+
+  // The marketing/catalog surfaces are intentionally gone.
+  await expect(page.getByRole("link", { name: /All courses/i })).toHaveCount(0);
+  await expect(page.getByText("Course overview")).toHaveCount(0);
+
+  await page.getByRole("link", { name: /Staging & Committing/i }).click();
+  await expect(page).toHaveURL(/\/learn\/staging-and-committing\/?$/);
+  await expect(
+    page.getByRole("heading", { name: "Staging & Committing" }),
   ).toBeVisible();
   await expect(page.locator("header")).toContainText("Git Essentials");
 });
 
 test("a lesson command runs in a real sandbox", async ({ page, request }) => {
-  const healthResponse = await request.get("http://127.0.0.1:8000/api/health/");
+  const healthResponse = await request.get(
+    process.env.E2E_HEALTH_URL ?? "http://127.0.0.1:8000/api/health/",
+  );
   const health = (await healthResponse.json()) as {
     terminal?: { sandbox?: string };
   };
@@ -38,7 +33,7 @@ test("a lesson command runs in a real sandbox", async ({ page, request }) => {
     "bubblewrap is not available on this host",
   );
 
-  await page.goto("/learn/working-with-linux-commands");
+  await page.goto("/learn/your-first-repository");
 
   await expect(page.locator(".xterm-screen")).toBeVisible();
   await expect(page.getByText("Connected", { exact: true })).toBeVisible({
@@ -62,7 +57,8 @@ test("a lesson command runs in a real sandbox", async ({ page, request }) => {
   });
 
   await page.getByRole("button", { name: /^run$/i }).first().click();
-  await expect(page.locator(".xterm-rows")).toContainText("README.md", {
-    timeout: 10_000,
-  });
+  await expect(page.locator(".xterm-rows")).toContainText(
+    "Initialized empty Git repository",
+    { timeout: 10_000 },
+  );
 });

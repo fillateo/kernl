@@ -2,16 +2,11 @@ from __future__ import annotations
 
 from django.db.models import Count, Prefetch
 from django.shortcuts import get_object_or_404
-from rest_framework import generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import Course, Lesson, Module
-from .serializers import (
-    CourseDetailSerializer,
-    CourseListSerializer,
-    LessonDetailSerializer,
-)
+from .serializers import LessonDetailSerializer
 
 
 def course_queryset():
@@ -28,21 +23,6 @@ def course_queryset():
             )
         )
     )
-
-
-class CourseListView(generics.ListAPIView):
-    serializer_class = CourseListSerializer
-
-    def get_queryset(self):
-        return course_queryset()
-
-
-class CourseDetailView(generics.RetrieveAPIView):
-    serializer_class = CourseDetailSerializer
-    lookup_field = "slug"
-
-    def get_queryset(self):
-        return course_queryset()
 
 
 class LessonDetailView(APIView):

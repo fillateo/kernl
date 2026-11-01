@@ -1,6 +1,6 @@
 import { cache } from "react";
 
-import type { CourseDetail, CourseSummary, Lesson, TerminalSession } from "@/lib/types";
+import type { Lesson, TerminalSession } from "@/lib/types";
 
 const PUBLIC_API_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://127.0.0.1:8000";
@@ -43,19 +43,6 @@ async function requestJson<T>(url: string): Promise<T | null> {
   }
   return (await response.json()) as T;
 }
-
-export const getCourses = cache(async (): Promise<CourseSummary[]> => {
-  const data = await requestJson<CourseSummary[]>(
-    `${SERVER_API_URL}/api/v1/catalog/courses/`,
-  );
-  return data ?? [];
-});
-
-export const getCourse = cache(async (slug: string): Promise<CourseDetail | null> => {
-  return requestJson<CourseDetail>(
-    `${SERVER_API_URL}/api/v1/catalog/courses/${encodeURIComponent(slug)}/`,
-  );
-});
 
 export const getLesson = cache(async (slug: string): Promise<Lesson | null> => {
   return requestJson<Lesson>(
@@ -108,15 +95,4 @@ export function getWebSocketBaseUrl(): string {
 
 export function buildTerminalSocketUrl(path: string): string {
   return `${getWebSocketBaseUrl()}${path}`;
-}
-
-export function formatDuration(minutes: number): string {
-  if (minutes < 60) return `${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  const remainder = minutes % 60;
-  return remainder ? `${hours}h ${remainder}m` : `${hours}h`;
-}
-
-export function formatLessonLabel(lessonNumber: number, totalLessons: number): string {
-  return `${lessonNumber} / ${totalLessons} lessons`;
 }

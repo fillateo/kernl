@@ -2,10 +2,11 @@
 
 **Learn the terminal by actually using it.**
 
-A local-first, Codecademy-style learning app with a real Linux terminal in the
-browser. Three pages, real bash, no sign-up, and no external shell service.
+One focused lesson workspace: a Codecademy-style page with a real Linux
+terminal in the browser. Real bash, no sign-up, no landing pages, no catalog
+browsing, and no external shell service.
 
-![Kernl lesson workspace](docs/screenshots/lesson.png)
+![Git Essentials lesson workspace](docs/screenshots/lesson.png)
 
 ## What it is
 
@@ -13,21 +14,17 @@ Kernl pairs short, guided lessons with an ephemeral Linux sandbox. The learner
 reads an explanation, runs the command from the lesson, and sees real output
 from a real shell—not a simulation or a recorded video.
 
-The challenge scope is intentionally tight:
+The scope is intentionally one page:
 
-- **3 pages:** `/` (catalog), `/courses/[slug]` (syllabus), `/learn/[slug]`
-  (lesson + terminal).
+- **One workspace:** `/learn/[slug]` is the entire product surface. `/` redirects
+  straight into the Git Essentials lesson; there is no landing page or catalog.
+- **One track:** Git Essentials, three lessons, with the lesson outline kept in
+  the sidebar.
 - **No authentication:** no sign-in, sign-up, accounts, or learner database.
 - **No external backend services:** SQLite, in-memory Channels, and a local
   bubblewrap sandbox. No AWS, Google Cloud, hosted Redis, or remote terminal.
 - **Tests wired into CI:** Django/Channels tests, Next.js unit tests, and
   Playwright browser tests.
-
-### Screenshots
-
-| Course library | Course syllabus |
-| --- | --- |
-| ![Course library](docs/screenshots/home.png) | ![Course syllabus](docs/screenshots/course.png) |
 
 ## Stack
 
@@ -163,7 +160,7 @@ the terminal fails closed rather than running an unconfined shell.
 ```
 Browser
   Next.js App Router
-    ├── GET catalog / lesson content ────────┐
+    ├── GET lesson content ──────────────────┐
     │                                        v
     │                                  Django REST API
     │                                        │
@@ -246,19 +243,17 @@ reason. Input and output are never written to the database.
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/health/` | Database health and a cached real bubblewrap probe |
-| `GET` | `/api/v1/catalog/courses/` | Published courses |
-| `GET` | `/api/v1/catalog/courses/<slug>/` | Course + modules + lessons |
-| `GET` | `/api/v1/catalog/lessons/<slug>/` | Lesson content + prev/next |
+| `GET` | `/api/v1/catalog/lessons/<slug>/` | Lesson content, outline, prev/next |
 | `POST` | `/api/v1/terminal/sessions/` | Create a one-time terminal ticket |
 
 Example:
 
 ```bash
 curl -s http://127.0.0.1:8000/api/health/
-curl -s http://127.0.0.1:8000/api/v1/catalog/courses/ | jq
+curl -s http://127.0.0.1:8000/api/v1/catalog/lessons/your-first-repository/ | jq
 curl -s -X POST http://127.0.0.1:8000/api/v1/terminal/sessions/ \
   -H 'Content-Type: application/json' \
-  -d '{"lesson_slug":"working-with-linux-commands"}' | jq
+  -d '{"lesson_slug":"your-first-repository"}' | jq
 ```
 
 ## Tests
@@ -273,13 +268,13 @@ make docker-e2e     # Playwright against the running Compose stack
 
 Current suites:
 
-- **20 backend tests** covering the catalog API, session issuing, ticket
+- **17 backend tests** covering lesson delivery, session issuing, ticket
   lifecycle, origin rejection, WebSocket I/O, input validation, and real
   bubblewrap isolation (network + filesystem).
-- **10 frontend tests** covering content rendering, XSS-safe rich text, command
-  execution wiring, course cards, and URL/format helpers.
-- **2 Playwright tests** covering the full three-page navigation flow, a command
-  round-trip through xterm.js, and executable lesson scripts inside the sandbox.
+- **7 frontend tests** covering content rendering, XSS-safe rich text, command
+  execution wiring, and WebSocket URL construction.
+- **2 Playwright tests** covering the direct-to-lesson boot, lesson navigation,
+  a command round-trip through xterm.js, and executable lesson scripts.
 
 The E2E terminal test automatically skips when the host cannot run bubblewrap.
 Backend sandbox tests do the same, so the suite remains portable.
@@ -293,7 +288,7 @@ Backend sandbox tests do the same, so the suite remains portable.
 2. **Frontend** — npm install from lockfile, ESLint, TypeScript, Vitest, Prettier
    check, and a production Next.js build.
 3. **E2E** — builds and starts the Docker Compose stack, verifies the API,
-   `/api/health/`, `check_terminal`, and all three pages, then runs Playwright
+   `/api/health/`, `check_terminal`, the lesson route, then runs Playwright
    against the containers with Chromium.
 
 No hosted services, Docker registry, or secrets are required. Tests use SQLite
@@ -310,7 +305,7 @@ and the in-memory Channels layer.
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:3000,...` | Browser origin for ticket POSTs |
 | `NEXT_PUBLIC_API_URL` | `http://127.0.0.1:8000` | Build arg; baked into browser JS |
 | `NEXT_PUBLIC_WS_URL` | `ws://127.0.0.1:8000` | Build arg; baked into browser JS |
-| `API_URL` | `http://api:8000` | Runtime server-side catalog fetches |
+| `API_URL` | `http://api:8000` | Runtime server-side lesson fetch |
 | `DATABASE_URL` | `sqlite:////app/data/db.sqlite3` | Named volume |
 | `TERMINAL_WORK_ROOT` | `/tmp/kernl-terminal` | Ephemeral tmpfs |
 
@@ -341,30 +336,24 @@ docker compose up -d web
 
 | Variable | Default | Notes |
 | --- | --- | --- |
-| `API_URL` | `http://127.0.0.1:8000` | Server-side catalog fetches |
+| `API_URL` | `http://api:8000` | Server-side lesson fetches |
 | `NEXT_PUBLIC_API_URL` | `http://127.0.0.1:8000` | Browser ticket POST |
 | `NEXT_PUBLIC_WS_URL` | derived from API URL | WebSocket origin override |
 
-## Course content
+## Lesson content
 
-The catalog lives in `backend/apps/catalog/seed_data.py` so it can be reviewed
-and versioned with the code. The seed command is idempotent:
+The Git Essentials track lives in `backend/apps/catalog/seed_data.py` so it can
+be reviewed and versioned with the code. The seed command is idempotent:
 
 ```bash
 cd backend
 .venv/bin/python manage.py seed_catalog --prune
 ```
 
-To edit content through Django admin:
+Edit the lesson copy in that file, then run the seed command again.
 
-```bash
-cd backend
-.venv/bin/python manage.py createsuperuser
-# visit http://127.0.0.1:8000/admin/
-```
-
-Three tracks are included: **Linux Foundations**, **Git Essentials**, and
-**Bash Scripting**—10 guided lessons with per-lesson starter files.
+Only **Git Essentials** is seeded: three guided lessons with per-lesson starter
+files and the matching lesson outline in the page sidebar.
 
 ## Project layout
 
@@ -379,8 +368,8 @@ backend/
   tests/                     API + WebSocket + real-shell integration tests
 frontend/
   Dockerfile                 Next.js standalone multi-stage image
-  src/app/(site)/            Home + course pages
-  src/app/(lesson)/          Lesson workspace
+  src/app/page.tsx           Redirects directly into the lesson workspace
+  src/app/(lesson)/          The only page: lesson + terminal
   src/components/lesson/     xterm panel, command blocks, lesson renderer
   src/lib/                   Typed API client, content types, design tokens
   e2e/                       Playwright flows
@@ -388,6 +377,9 @@ frontend/
 
 ## Design decisions & tradeoffs
 
+- **One page by design.** There is no landing page, catalog, or course detail
+  route. The root redirects into the lesson workspace, and the sidebar links to
+  the three Git lessons.
 - **Docker for packaging, bubblewrap for execution.** Compose gives reproducible
   images, a read-only runtime, healthchecks, and one-command startup. Bubblewrap
   still creates a fresh namespace and filesystem for every terminal session;

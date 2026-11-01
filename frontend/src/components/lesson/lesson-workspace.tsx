@@ -12,6 +12,7 @@ import type { Lesson } from "@/lib/types";
 export function LessonWorkspace({ lesson }: { lesson: Lesson }) {
   const terminalRef = useRef<TerminalHandle>(null);
   const terminalWrapRef = useRef<HTMLDivElement>(null);
+  const firstLessonSlug = lesson.course.modules[0]?.lessons[0]?.slug ?? lesson.slug;
 
   const runCommand = useCallback((command: string) => {
     terminalRef.current?.runCommand(command);
@@ -92,13 +93,9 @@ export function LessonWorkspace({ lesson }: { lesson: Lesson }) {
                 </span>
               </Link>
             ) : (
-              <Link
-                href={`/courses/${lesson.course.slug}`}
-                className="btn btn-outline px-4! py-2.5! text-[11px]"
-              >
-                <ArrowLeft className="size-3.5" />
-                Back to course
-              </Link>
+              <span className="text-muted font-mono text-[9px] tracking-[0.12em] uppercase">
+                Start of track
+              </span>
             )}
 
             {lesson.next_lesson ? (
@@ -111,10 +108,10 @@ export function LessonWorkspace({ lesson }: { lesson: Lesson }) {
               </Link>
             ) : (
               <Link
-                href={`/courses/${lesson.course.slug}`}
+                href={`/learn/${firstLessonSlug}`}
                 className="btn btn-dark px-4! py-2.5! text-[11px]"
               >
-                Finish course
+                Back to first lesson
                 <ArrowRight className="size-3.5" />
               </Link>
             )}

@@ -134,8 +134,8 @@ jobs:
           docker compose ps
           curl -fsS http://127.0.0.1:8000/api/health/
           docker compose exec -T api python manage.py check_terminal
-          for path in / /courses/linux-foundations /learn/working-with-linux-commands; do
-            curl -fsS "http://127.0.0.1:3000${path}" > /dev/null
+          for path in / /learn/your-first-repository; do
+            curl -fsSL "http://127.0.0.1:3000${path}" > /dev/null
           done
 
       - name: Install frontend test dependencies

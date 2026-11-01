@@ -1,5 +1,4 @@
-import { ArrowLeft, Circle } from "lucide-react";
-import Link from "next/link";
+import { Circle } from "lucide-react";
 
 import { Logo } from "@/components/site/logo";
 
@@ -26,14 +25,6 @@ export function AppHeader({ courseTitle }: { courseTitle: string }) {
             />
             Local workspace
           </span>
-          <Link
-            href="/#courses"
-            className="border-line-strong bg-paper text-ink hover:border-ink inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-medium transition-colors"
-          >
-            <ArrowLeft className="size-3.5" />
-            <span className="hidden sm:inline">All courses</span>
-            <span className="sm:hidden">Courses</span>
-          </Link>
         </div>
       </div>
     </header>

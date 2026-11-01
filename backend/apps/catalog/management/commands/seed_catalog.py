@@ -21,6 +21,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         course_count = 0
         lesson_count = 0
+        seen_course_slugs: set[str] = set()
 
         for course_position, course_data in enumerate(COURSES, start=1):
             modules = course_data["modules"]
@@ -41,6 +42,7 @@ class Command(BaseCommand):
                 },
             )
             course_count += 1
+            seen_course_slugs.add(course.slug)
 
             seen_module_positions: set[int] = set()
             seen_lesson_slugs: set[str] = set()
@@ -88,6 +90,11 @@ class Command(BaseCommand):
                 Lesson.objects.filter(module__course=course).exclude(
                     slug__in=seen_lesson_slugs
                 ).delete()
+
+        if options["prune"]:
+            # The app exposes only one track. Remove stale courses from older
+            # local databases so direct lesson URLs cannot resurrect them.
+            Course.objects.exclude(slug__in=seen_course_slugs).delete()
 
         self.stdout.write(
             self.style.SUCCESS(
