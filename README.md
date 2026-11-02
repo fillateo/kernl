@@ -43,6 +43,113 @@ The scope is exactly three pages:
 | Tests | pytest, pytest-django, pytest-asyncio, Vitest, Testing Library, Playwright |
 | CI | GitHub Actions, including a Docker Compose E2E job |
 
+## Architecture
+
+Kernl is a local three-tier application:
+
+- **Presentation:** Next.js App Router with three page types and xterm.js.
+- **Application:** Django REST + Channels running under Uvicorn.
+- **Coordination/data:** PostgreSQL in Docker, SQLite for native development.
+- **Execution:** one disposable bubblewrap + PTY shell per terminal session.
+
+### Runtime topology
+
+```text
+Browser
+  │
+  ├── HTTP :3000 ─────────────► web · Next.js standalone
+  │                               │
+  │                               └── server-side lesson fetch
+  │                                        │
+  ├── POST /api/v1/terminal/sessions/ :8000│
+  └── WS /ws/terminal/<uuid>/ :8000 ───────┤
+                                           ▼
+                                    api · Uvicorn workers (2 by default)
+                                      ├── Django REST API
+                                      ├── Channels terminal consumer
+                                      └── per-session PTY + bubblewrap
+                                           │
+                    ┌──────────────────────┴──────────────────────┐
+                    ▼                                             ▼
+              db · PostgreSQL 17                          sandbox · bash
+              internal-only, named volume                 read-only rootfs,
+                                                          writable /home/learner
+```
+
+- The browser talks to the API directly for ticket creation and WebSockets.
+- Next.js server components call the API over the internal Compose network.
+- PostgreSQL is never exposed to the host.
+- Only `127.0.0.1:3000` and `127.0.0.1:8000` are published.
+- The shell itself has no host network namespace.
+
+### Page types and routes
+
+| Page type | Route | Responsibility |
+| --- | --- | --- |
+| Course overview | `/` | Git Essentials outline and links into lessons |
+| Lesson workspace | `/learn/[slug]` | Lesson content + primary terminal experience |
+| Terminal playground | `/playground` | Free sandbox, no lesson attached |
+
+There are three **page types**, not one page per lesson. The dynamic
+`/learn/[slug]` route renders the same component for the three Git lesson
+records. API routes, WebSocket routes, and framework 404/error states are not
+product pages.
+
+### Backend components
+
+| Component | Location | Responsibility |
+| --- | --- | --- |
+| Catalog API | `backend/apps/catalog/` | Course/module/lesson models, seed data, lesson serializer |
+| Terminal API | `backend/apps/terminal/views.py` | Issues short-lived one-use tickets |
+| WebSocket consumer | `backend/apps/terminal/consumers.py` | Claims tickets, starts PTY, handles JSON protocol, cleanup |
+| Sandbox runtime | `backend/apps/terminal/services/bubblewrap.py` | bubblewrap args, PTY lifecycle, resize, process-group teardown |
+| ASGI app | `backend/config/asgi.py` | HTTP + origin-validated WebSocket routing |
+| Health | `backend/apps/core/views.py` | DB check and cached real bubblewrap probe |
+| Container bootstrap | `backend/docker/start-api.sh` | migrate, seed, start Uvicorn workers |
+
+### Frontend components
+
+| Component | Location | Responsibility |
+| --- | --- | --- |
+| Terminal panel | `frontend/src/components/lesson/terminal-panel.tsx` | xterm.js, fit/resize, ticket POST, WebSocket JSON protocol, restart/error UI |
+| Lesson workspace | `frontend/src/components/lesson/lesson-workspace.tsx` | Sidebar outline, lesson rendering, terminal integration |
+| API client | `frontend/src/lib/api.ts` | Typed lesson fetch, ticket creation, WS URL derivation |
+| Page shell | `frontend/src/app/` | Three page routes + loading/error/not-found states |
+
+### Data model
+
+```text
+Course 1──* Module 1──* Lesson
+                            │
+                            └──* TerminalSession (optional FK, SET_NULL)
+
+TerminalSession
+  id, lesson, created_at, expires_at,
+  connected_at, closed_at, close_reason
+```
+
+- Only **Git Essentials** is seeded: 2 modules and 3 lessons as shown in the UI.
+- A terminal ticket is single-use and does not require a learner account.
+- Commands and terminal output are **never** written to the database.
+- There are no auth, profile, progress, or admin tables.
+
+### Request flow
+
+1. The browser requests a page from Next.js on `:3000`.
+2. Next.js server-side fetches lesson data from `http://api:8000` in Docker.
+3. The lesson page mounts xterm.js and POSTs to
+   `/api/v1/terminal/sessions/`.
+4. The API creates a UUID ticket with a 30-minute claim TTL.
+5. The browser opens `/ws/terminal/<uuid>/`.
+6. Channels validates the origin and atomically claims the ticket with
+   `SELECT ... FOR UPDATE`.
+7. The consumer starts bash in a new PTY inside bubblewrap and streams output.
+8. Disconnect, idle timeout, or maximum lifetime kills the process group,
+   removes the workspace, and records the close reason.
+
+HTTP and WebSocket requests can be handled by different Uvicorn workers because
+the ticket and session state live in PostgreSQL.
+
 ## Quickstart with Docker
 
 ### Prerequisites
@@ -98,6 +205,7 @@ docker compose
                exposed at 127.0.0.1:3000
 ```
 
+Startup order is `db healthy → api migrate/seed → api healthy → web`.
 Only `127.0.0.1:3000` and `127.0.0.1:8000` are published. The web container
 reaches the API over the private Compose network at `http://api:8000`; Postgres
 is never exposed to the host.
@@ -203,7 +311,8 @@ Browser
 ```
 
 1. The lesson page mounts xterm.js and requests a terminal ticket over HTTP.
-2. The ticket is a UUID with a short TTL and is stored in SQLite.
+2. The ticket is a UUID with a short TTL and is stored in the configured database
+   (SQLite for native development, PostgreSQL in Docker).
 3. The browser opens a WebSocket with that UUID.
 4. `TerminalConsumer` validates the origin, atomically claims the ticket, and
    starts a PTY-backed bash process inside a bubblewrap sandbox.
@@ -232,6 +341,17 @@ Server → client:
 {"type": "pong"}
 ```
 
+Framing and limits:
+
+- JSON text frames in both directions.
+- Input limited to **16 KB** per message.
+- Terminal output limited to **2 MB** per session.
+- Resize is clamped to 400×200.
+- Close reasons include `client_disconnect`, `shell_exit`, `idle_timeout`,
+  `max_lifetime`, `output_limit`, `sandbox_unavailable`, and `read_error`.
+- WebSocket close codes include `4404` (invalid/used ticket), `1008` (output
+  limit), `1011` (sandbox failure), `4001` (idle), and `4002` (max lifetime).
+
 ## Sandbox security model
 
 This is a **single-user, local-first** application. There is deliberately no
@@ -250,7 +370,7 @@ The shell is isolated with bubblewrap:
 - Resource limits: 8 MB max file, 128 file descriptors, 2 MB output per session,
   10 min idle timeout, 20 min maximum lifetime.
 - Server-side guardrails: single-use tickets, origin validation, a global
-  session cap, and per-IP ticket throttling.
+  session cap, and ticket throttling.
 
 **Do not expose this app directly to the public internet.** Running arbitrary
 commands for anonymous users requires authentication, per-user quotas, a
@@ -258,8 +378,9 @@ separate sandbox host, auditing, and a defensive reverse proxy. The local
 sandbox is appropriate for the challenge and for local learning; it is not a
 multi-tenant hosting design.
 
-The only data persisted about a terminal is a UUID, timestamps, and a close
-reason. Input and output are never written to the database.
+The only terminal data persisted is the session UUID, optional lesson
+reference, timestamps, and close reason. Input and output are never written to
+the database.
 
 ## API
 
@@ -269,9 +390,29 @@ reason. Input and output are never written to the database.
 | `GET` | `/api/v1/catalog/lessons/<slug>/` | Lesson content, outline, prev/next |
 | `POST` | `/api/v1/terminal/sessions/` | Create a one-time terminal ticket |
 
+`/api/health/` returns `200` when PostgreSQL is reachable, with
+`status: "degraded"` if the cached bubblewrap probe fails. It returns `503`
+only when the database itself is unavailable. This lets the web container start
+and show a useful terminal error even if the host sandbox cannot boot.
+
 The ticket endpoint accepts an optional `lesson_slug`. Lesson pages send it so
 the sandbox starts with that lesson's files; the playground omits it and starts
 with an empty home directory.
+
+```json
+POST /api/v1/terminal/sessions/
+{"lesson_slug": "your-first-repository"}
+
+201 Created
+{
+  "id": "…uuid…",
+  "expires_at": "…",
+  "websocket_path": "/ws/terminal/…uuid…/"
+}
+```
+
+The ticket is single-use. The WebSocket route validates the browser origin, and
+the consumer claims the ticket atomically with `SELECT ... FOR UPDATE`.
 
 Example:
 
@@ -284,6 +425,17 @@ curl -s -X POST http://127.0.0.1:8000/api/v1/terminal/sessions/ \
 ```
 
 ## Tests
+
+### Test matrix
+
+| Layer | Coverage | Command |
+| --- | --- | --- |
+| Backend | API, ticket lifecycle, WS protocol, idle/output limits, concurrency, real bwrap | `make test-backend` |
+| Frontend | Rendering, XSS-safe text, command wiring, WebSocket URL | `make test-frontend` |
+| Browser/UI | 3-page flow, terminals, concurrency, WCAG, responsive, 404, console errors | `make docker-e2e` |
+| Postgres path | The same backend suite against PostgreSQL | CI backend job |
+| Full local gate | Lint + unit + build + Docker + Playwright | `make verify` |
+
 
 ```bash
 make test           # backend + frontend
@@ -308,7 +460,7 @@ Current suites:
 The E2E terminal test automatically skips when the host cannot run bubblewrap.
 Backend sandbox tests do the same, so the suite remains portable.
 
-### CI
+### CI/CD
 
 `.github/workflows/ci.yml` runs three jobs on every push and pull request:
 
@@ -323,6 +475,11 @@ Backend sandbox tests do the same, so the suite remains portable.
 No hosted services, Docker registry, or secrets are required. The CI backend
 job uses a local PostgreSQL service; Docker E2E uses the Compose PostgreSQL
 database and two Uvicorn workers.
+
+Deployment is intentionally local: the project does not push to a cloud
+provider because the brief forbids external backend resources. A production CD
+target would publish the two images and provide a WebSocket-capable reverse
+proxy in front of the API; the application state model already supports that.
 
 ## Configuration
 
@@ -373,6 +530,41 @@ docker compose up -d web
 | `NEXT_PUBLIC_API_URL` | `http://127.0.0.1:8000` | Browser ticket POST |
 | `NEXT_PUBLIC_WS_URL` | derived from API URL | WebSocket origin override |
 
+## Troubleshooting
+
+### Terminal says sandbox unavailable
+
+```bash
+make docker-check
+curl -s http://127.0.0.1:8000/api/health/
+docker compose logs api
+```
+
+The API must run on a Linux host with bubblewrap and unprivileged user
+namespaces. Docker Desktop on macOS/Windows may block nested namespaces.
+
+### Port already in use
+
+Kernl publishes `127.0.0.1:3000` and `127.0.0.1:8000`. Stop the conflicting
+process or change the published ports and the corresponding
+`NEXT_PUBLIC_API_URL` / `NEXT_PUBLIC_WS_URL` build args.
+
+### Reset the database
+
+```bash
+make docker-reset
+make docker-up
+```
+
+### Rebuild browser-facing URLs
+
+`NEXT_PUBLIC_*` values are baked into the web bundle. After changing them:
+
+```bash
+docker compose build web
+docker compose up -d web
+```
+
 ## Lesson content
 
 The Git Essentials track lives in `backend/apps/catalog/seed_data.py` so it can
@@ -392,12 +584,14 @@ files and the matching lesson outline in the page sidebar.
 
 ```text
 compose.yaml                 Postgres + multi-worker API + web
+.github/workflows/ci.yml     Backend, frontend, and Docker E2E pipelines
 backend/
   Dockerfile                 Python + bubblewrap production image
   docker/start-api.sh        migrate, seed, then start Uvicorn workers
   config/                    Django settings, ASGI, URLs
-  apps/catalog/              Courses, modules, lessons, API, seed data
+  apps/catalog/              Git lessons, outline API, seed data
   apps/terminal/             Session tickets, Channels consumer, bwrap PTY
+  apps/core/                 Health + real sandbox probe
   tests/                     API + WebSocket + real-shell integration tests
 frontend/
   Dockerfile                 Next.js standalone multi-stage image
@@ -406,7 +600,9 @@ frontend/
   src/app/(lesson)/playground/ Standalone terminal playground
   src/components/lesson/     xterm panel, command blocks, lesson renderer
   src/lib/                   Typed API client, content types, design tokens
-  e2e/                       Playwright flows
+  e2e/                       Flow, terminal, accessibility, and responsive tests
+scripts/                     Native dev + E2E bootstrap scripts
+docs/screenshots/            Current three-page screenshots
 ```
 
 ## Design decisions & tradeoffs
